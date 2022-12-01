@@ -5,6 +5,7 @@ use std::path::Path;
 use core::f32::consts::E;
 use std::ops::Mul;
 use std::ops::Add;
+use std::sync::{Mutex};
 
 
 #[derive(Clone, PartialEq, Debug)]
@@ -17,7 +18,7 @@ impl Mul<f64> for Point {
     type Output = Point;
 
     fn mul(self, rhs: f64) -> Point {
-        Point { label: "mul".to_owned(), loc: self.loc.iter().map(|v| v * rhs).collect() }
+        Point { label: self.label, loc: self.loc.iter().map(|v| v * rhs).collect() }
     }
 }
 
@@ -34,9 +35,11 @@ impl Add<Point> for Point {
             vec.push(self.loc[i] + rhs.loc[i]);
         }
 
-        Point { label: "add".to_owned(), loc: vec }
+        Point { label: format!("{}+{}", self.label, rhs.label), loc: vec }
     }
 }
+
+type CentroidMutex = Mutex<Vec<Point>>;
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 where P: AsRef<Path>, {
@@ -46,48 +49,54 @@ where P: AsRef<Path>, {
 
 fn main() {
     let mut points = Vec::new();
-    let dimension = 2;
+
+    let centroids : CentroidMutex = Mutex::new(Vec::new());
+
     //let n = 5;
     let radius = 2.0;
 
     if let Ok(lines) = read_lines("./points.txt") {
-        for (i, line) in lines.skip(1).enumerate() {
+        for line in lines.skip(1) {
             if let Ok(ip) = line {
-                println!("{}", i);
-                let locs = ip.split(",").map(|x| x.parse::<f64>().unwrap()).collect();
-                points.push(Point{label: format!("test{i}").to_owned(), loc: locs});
+                let label: String = ip.split(",").take(1).collect();
+                let locs = ip.split(",").skip(1).map(|x| x.parse::<f64>().unwrap()).collect();
+                points.push(Point{label: label, loc: locs});
             }
         }
     }
 
+    let dimension = points[0].loc.len();
     let original = points.clone();
 
     points.par_iter_mut().for_each(|p| {
         let mut centroid = p.clone();
-        println!("Before: {:?}", centroid);
         loop {
-            let mut dist = 0.0;
             let mut change = false;
             for point in &original {
+                if p == point {
+                    continue;
+                }
+                let mut dist = 0.0;
                 for i in 0..dimension
                 {
                     let d = point.loc[i] - centroid.loc[i];
                     dist += d * d;
                 }
+                dist = dist.sqrt();
                 if dist <= radius {
                     let upper = dist * dist;
                     let lower = 2.0 * radius * radius;
                     let sub = upper / lower;
                     let gauss = E.powf(-sub as f32);
-                    centroid = centroid.clone() + (p.clone() * gauss as f64).clone();
+                    centroid = centroid.clone() + (point.clone() * gauss as f64).clone();
                     change = true;
-                    println!("New: {:?}", centroid);
                 }
             }
             if !change {
                 break;
             }
         }
-        //println!("{}", original[0].label);
+        centroids.lock().unwrap().push(centroid);
     });
+    println!("{:?}", centroids.lock().unwrap());
 }
