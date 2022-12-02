@@ -5,9 +5,11 @@ use std::path::Path;
 use core::f32::consts::E;
 use core::f32::consts::PI;
 use std::ops::Mul;
+use std::ops::Div;
 use std::ops::Add;
 use std::sync::mpsc::channel;
 use std::sync::{Mutex};
+use std::iter::Sum;
 
 
 trait Distance {
@@ -20,6 +22,23 @@ struct Point {
     label: String,
     loc: Vec<f64>
 }
+
+impl Sum for Point {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Point>
+    {
+        let locs = Vec::from_iter(iter.map(|i| i.loc));
+        let mut floc: Vec<f64> = vec![0.0; locs[0].len()];
+        for loc in locs {
+            for i in 0..loc.len() {
+                floc[i] += loc[i];
+            }
+        }
+        Point { label: "".to_owned(), loc: floc }
+    }
+}
+
 
 impl Distance for Point {
     fn get_distance(&self, point: &Point) -> f64 {
@@ -50,6 +69,14 @@ impl Mul<f64> for Point {
     }
 }
 
+impl Div<f64> for Point {
+    type Output = Point;
+
+    fn div(self, rhs: f64) -> Point {
+        Point { label: self.label, loc: self.loc.iter().map(|v| v / rhs).collect() }
+    }
+}
+
 impl Add<Point> for Point {
     type Output = Point;
 
@@ -77,15 +104,15 @@ where P: AsRef<Path>, {
 
 fn get_gauss(dist: f64, dimension: usize, bandwidth: f32) -> f32 {
     let f_1 = 1.0/(bandwidth * (2.0*PI).sqrt()).powf(dimension as f32);
-    let f_2 = E.powf(-0.5*(dist as f32/bandwidth).powf(2.0));
+    let f_2 = E.powf(-dist.powf(2.0) as f32 / (2.0 * bandwidth).powf(2.0));
     f_1 * f_2
 }
 
 fn main() {
-    let bandwidth = 2000.0;
+    let bandwidth = 9.0;
     let radius = 2.5;
-    let min_distance = 0.000001;
-    let max_iter = 10_000;
+    let min_distance = 1e-3 * bandwidth;
+    let max_iter = 200;
 
     let mut points = Vec::new();
 
@@ -114,23 +141,19 @@ fn main() {
         let mut centroid = p.clone();
         for _i in 0..max_iter {
             let mut change = false;
+            let mut points_within: Vec<Point> = Vec::new();
+            let mut gausses: Vec<f64> = Vec::new();
             for point in original.iter() {
-                if p == point {
-                    continue;
-                }
-                let dist = point.get_distance(&p);
+                let dist = point.get_distance(&centroid);
                 if dist <= radius {
-                    let gauss = get_gauss(dist, dimension, bandwidth);
-                    let old_centroid = centroid.clone();
-                    centroid = centroid.clone() + (point.clone() * gauss as f64).clone();
-                    let change_by = old_centroid.get_distance(&centroid);
-                    // println!("{}", change_by);
-                    if change_by > min_distance {
-                        change = true;
-                    }
+                    points_within.push(point.clone());
+                    gausses.push(get_gauss(dist, dimension, bandwidth) as f64);
                 }
             }
-            if !change {
+            let old_centroid = centroid.clone();
+            centroid = points_within.iter().zip(&gausses).map(|(a, b)| a.clone() * *b).sum::<Point>() / gausses.iter().sum();
+            let change_by = old_centroid.get_distance(&centroid);
+            if change_by as f32 > min_distance {
                 break;
             }
         }
