@@ -3,15 +3,33 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use core::f32::consts::E;
+use core::f32::consts::PI;
 use std::ops::Mul;
 use std::ops::Add;
+use std::sync::mpsc::channel;
 use std::sync::{Mutex};
 
+
+trait Distance {
+    fn get_distance(&self, point: &Self) -> f64;
+}
 
 #[derive(Clone, PartialEq, Debug)]
 struct Point {
     label: String,
     loc: Vec<f64>
+}
+
+impl Distance for Point {
+    fn get_distance(&self, point: &Point) -> f64 {
+        let mut dist = 0.0;
+        for i in 0..self.loc.len()
+        {
+            let d = self.loc[i] - point.loc[i];
+            dist += d * d;
+        }
+        dist.sqrt()
+    }
 }
 
 impl Mul<f64> for Point {
@@ -47,13 +65,20 @@ where P: AsRef<Path>, {
     Ok(io::BufReader::new(file).lines())
 }
 
+fn get_gauss(dist: f64, dimension: usize, bandwidth: f32) -> f32 {
+    let f_1 = 1.0/(bandwidth * (2.0*PI).sqrt()).powf(dimension as f32);
+    let f_2 = E.powf(-0.5*(dist as f32/bandwidth).powf(2.0));
+    f_1 * f_2
+}
+
 fn main() {
+    let bandwidth = 2000.0;
+    let radius = 2.0;
+    let min_distance = 0.000001;
+
     let mut points = Vec::new();
 
     let centroids : CentroidMutex = Mutex::new(Vec::new());
-
-    //let n = 5;
-    let radius = 2.0;
 
     if let Ok(lines) = read_lines("./points.txt") {
         for line in lines.skip(1) {
@@ -76,20 +101,16 @@ fn main() {
                 if p == point {
                     continue;
                 }
-                let mut dist = 0.0;
-                for i in 0..dimension
-                {
-                    let d = point.loc[i] - centroid.loc[i];
-                    dist += d * d;
-                }
-                dist = dist.sqrt();
+                let dist = point.get_distance(&centroid);
                 if dist <= radius {
-                    let upper = dist * dist;
-                    let lower = 2.0 * radius * radius;
-                    let sub = upper / lower;
-                    let gauss = E.powf(-sub as f32);
+                    let gauss = get_gauss(dist, dimension, bandwidth);
+                    let old_centroid = centroid.clone();
                     centroid = centroid.clone() + (point.clone() * gauss as f64).clone();
-                    change = true;
+                    let change_by = old_centroid.get_distance(&centroid);
+                    println!("{}", change_by);
+                    if change_by > min_distance {
+                        change = true;
+                    }
                 }
             }
             if !change {
