@@ -112,7 +112,7 @@ fn main() {
 
     points.par_iter_mut().for_each(|p| {
         let mut centroid = p.clone();
-        for i in 0..max_iter {
+        for _i in 0..max_iter {
             let mut change = false;
             for point in original.iter() {
                 if p == point {
