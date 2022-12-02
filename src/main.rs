@@ -12,6 +12,7 @@ use std::sync::{Mutex};
 
 trait Distance {
     fn get_distance(&self, point: &Self) -> f64;
+    fn make_mean(&mut self, point: &Self);
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -29,6 +30,15 @@ impl Distance for Point {
             dist += d * d;
         }
         dist.sqrt()
+    }
+    fn make_mean(&mut self, point: &Point) {
+        let size = point.loc.len();
+        if size != self.loc.len() {
+            panic!("Vectors not same size!");
+        }
+        for i in 0..size {
+            self.loc[i] = (self.loc[i] + point.loc[i]) / 2.0;
+        }
     }
 }
 
@@ -73,8 +83,9 @@ fn get_gauss(dist: f64, dimension: usize, bandwidth: f32) -> f32 {
 
 fn main() {
     let bandwidth = 2000.0;
-    let radius = 2.0;
+    let radius = 2.5;
     let min_distance = 0.000001;
+    let max_iter = 10_000;
 
     let mut points = Vec::new();
 
@@ -101,13 +112,13 @@ fn main() {
 
     points.par_iter_mut().for_each(|p| {
         let mut centroid = p.clone();
-        loop {
+        for i in 0..max_iter {
             let mut change = false;
-            for point in &original {
+            for point in original.iter() {
                 if p == point {
                     continue;
                 }
-                let dist = point.get_distance(&centroid);
+                let dist = point.get_distance(&p);
                 if dist <= radius {
                     let gauss = get_gauss(dist, dimension, bandwidth);
                     let old_centroid = centroid.clone();
@@ -125,5 +136,20 @@ fn main() {
         }
         centroids.lock().unwrap().push(centroid);
     });
-    println!("{:?}", centroids.lock().unwrap());
+    let mut final_centroids: Vec<Point> = Vec::new();
+
+    for c in centroids.lock().unwrap().iter() {
+        let mut add = true;
+        for nc in final_centroids.iter_mut() {
+            if c.get_distance(nc) < radius/5.0 {
+                add = false;
+                nc.make_mean(&c);
+            }
+        }
+        if add {
+            final_centroids.push(c.clone());
+        }
+    }
+    println!("count: {}", final_centroids.len());
+    println!("centroids: {:?}", final_centroids);
 }
