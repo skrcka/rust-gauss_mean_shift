@@ -46,7 +46,7 @@ impl Add<Point> for Point {
     fn add(self, rhs: Point) -> Point {
         let size = rhs.loc.len();
         if size != self.loc.len() {
-            panic!("Vectors not same size");
+            panic!("Vectors not same size!");
         }
         let mut vec = Vec::with_capacity(size);
         for i in 0..size {
@@ -87,7 +87,13 @@ fn main() {
                 let locs = ip.split(",").skip(1).map(|x| x.parse::<f64>().unwrap()).collect();
                 points.push(Point{label: label, loc: locs});
             }
+            else {
+                panic!("Failed to read line!");
+            }
         }
+    }
+    else {
+        panic!("Failed to read file!");
     }
 
     let dimension = points[0].loc.len();
@@ -107,7 +113,7 @@ fn main() {
                     let old_centroid = centroid.clone();
                     centroid = centroid.clone() + (point.clone() * gauss as f64).clone();
                     let change_by = old_centroid.get_distance(&centroid);
-                    println!("{}", change_by);
+                    // println!("{}", change_by);
                     if change_by > min_distance {
                         change = true;
                     }
