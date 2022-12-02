@@ -7,7 +7,6 @@ use core::f32::consts::PI;
 use std::ops::Mul;
 use std::ops::Div;
 use std::ops::Add;
-use std::sync::mpsc::channel;
 use std::sync::{Mutex};
 use std::iter::Sum;
 
@@ -109,16 +108,17 @@ fn get_gauss(dist: f64, dimension: usize, bandwidth: f32) -> f32 {
 }
 
 fn main() {
-    let bandwidth = 9.0;
-    let radius = 2.5;
-    let min_distance = 1e-3 * bandwidth;
+    const FILENAME: &str = "./mnist_test.csv"; // "./points.txt"
+    const BANDWIDTH: f32 = 14507.0; // 14507.0 9.0
+    const RADIUS: f64 = 14507.0; // 2.5
+    let min_distance = 1e-3 * BANDWIDTH;
     let max_iter = 200;
 
     let mut points = Vec::new();
 
     let centroids : CentroidMutex = Mutex::new(Vec::new());
 
-    if let Ok(lines) = read_lines("./points.txt") {
+    if let Ok(lines) = read_lines(FILENAME) {
         for line in lines.skip(1) {
             if let Ok(ip) = line {
                 let label: String = ip.split(",").take(1).collect();
@@ -140,15 +140,17 @@ fn main() {
     points.par_iter_mut().for_each(|p| {
         let mut centroid = p.clone();
         for _i in 0..max_iter {
-            let mut change = false;
             let mut points_within: Vec<Point> = Vec::new();
             let mut gausses: Vec<f64> = Vec::new();
             for point in original.iter() {
                 let dist = point.get_distance(&centroid);
-                if dist <= radius {
+                if dist <= RADIUS {
                     points_within.push(point.clone());
-                    gausses.push(get_gauss(dist, dimension, bandwidth) as f64);
+                    gausses.push(get_gauss(dist, dimension, BANDWIDTH) as f64);
                 }
+            }
+            if points_within.len() == 0 {
+                continue;
             }
             let old_centroid = centroid.clone();
             centroid = points_within.iter().zip(&gausses).map(|(a, b)| a.clone() * *b).sum::<Point>() / gausses.iter().sum();
@@ -164,7 +166,7 @@ fn main() {
     for c in centroids.lock().unwrap().iter() {
         let mut add = true;
         for nc in final_centroids.iter_mut() {
-            if c.get_distance(nc) < radius/5.0 {
+            if c.get_distance(nc) < RADIUS/5.0 {
                 add = false;
                 nc.make_mean(&c);
             }
