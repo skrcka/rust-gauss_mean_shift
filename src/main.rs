@@ -101,16 +101,16 @@ where P: AsRef<Path>, {
     Ok(io::BufReader::new(file).lines())
 }
 
-fn get_gauss(dist: f64, dimension: usize, bandwidth: f32) -> f32 {
-    let f_1 = 1.0/(bandwidth * (2.0*PI).sqrt()).powf(dimension as f32);
-    let f_2 = E.powf(-dist.powf(2.0) as f32 / (2.0 * bandwidth).powf(2.0));
+fn get_gauss(dist: f64, dimension: usize, bandwidth: f32) -> f64 {
+    let f_1: f64 = 1.0 / ((bandwidth as f64)* (2.0*PI as f64).sqrt()).powf(dimension as f64);
+    let f_2: f64 = (E as f64).powf(-dist.powf(2.0) / (2.0 * bandwidth as f64).powf(2.0));
     f_1 * f_2
 }
 
 fn main() {
     const FILENAME: &str = "./mnist_test.csv"; // "./points.txt"
-    const BANDWIDTH: f32 = 14507.0; // 14507.0 9.0
-    const RADIUS: f64 = 14507.0; // 2.5
+    const BANDWIDTH: f32 = 9.0; // 14507.0 9.0
+    const RADIUS: f64 = 1500.0; // 2.5
     let min_distance = 1e-3 * BANDWIDTH;
     let max_iter = 200;
 
@@ -149,13 +149,13 @@ fn main() {
                     gausses.push(get_gauss(dist, dimension, BANDWIDTH) as f64);
                 }
             }
-            if points_within.len() == 0 {
-                continue;
-            }
+            let gauss_sum = gausses.iter().sum();
             let old_centroid = centroid.clone();
-            centroid = points_within.iter().zip(&gausses).map(|(a, b)| a.clone() * *b).sum::<Point>() / gausses.iter().sum();
+            if points_within.len() > 0 && gauss_sum > 0.0 {
+                centroid = points_within.iter().zip(&gausses).map(|(a, b)| a.clone() * *b).sum::<Point>() / gauss_sum;
+            }
             let change_by = old_centroid.get_distance(&centroid);
-            if change_by as f32 > min_distance {
+            if (change_by as f32) < min_distance {
                 break;
             }
         }
@@ -175,6 +175,6 @@ fn main() {
             final_centroids.push(c.clone());
         }
     }
-    println!("count: {}", final_centroids.len());
     println!("centroids: {:?}", final_centroids);
+    println!("count: {}", final_centroids.len());
 }
